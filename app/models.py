@@ -10,7 +10,7 @@ class MaxUser(Base):
     __tablename__ = "max_users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    # Телефон, на который оформлена оплата. Заполняется админом вручную
+    # Телефон, на который подписка. Заполняется админом вручную
     # и/или подтверждается пользователем через "Поделиться номером" в боте.
     phone: Mapped[str] = mapped_column(String(20), unique=True, index=True)
     # ID пользователя в MAX. Заполняется автоматически, когда пользователь
