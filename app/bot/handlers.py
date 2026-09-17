@@ -2,7 +2,13 @@ import logging
 
 from maxapi import Dispatcher
 from maxapi.filters import Contact as ContactFilter
-from maxapi.types import CommandStart, InputMediaBuffer, MessageCreated, RequestContactButton
+from maxapi.types import (
+    BotStarted,
+    CommandStart,
+    InputMediaBuffer,
+    MessageCreated,
+    RequestContactButton,
+)
 from maxapi.types.attachments import Contact as ContactAttachment
 from maxapi.types.attachments import File
 from maxapi.utils.inline_keyboard import InlineKeyboardBuilder
@@ -27,17 +33,13 @@ def _contact_keyboard() -> list:
     return [builder.as_markup()]
 
 
-async def _request_contact(event: MessageCreated) -> None:
-    await event.message.answer(CONTACT_PROMPT, attachments=_contact_keyboard())
+async def _request_contact(event: BotStarted | MessageCreated) -> None:
+    # event.send(...) — общий shortcut и для BotStarted, и для MessageCreated
+    # (в отличие от event.message.answer, которого у BotStarted нет).
+    await event.send(CONTACT_PROMPT, attachments=_contact_keyboard())
 
 
-# Порядок регистрации handler'ов важен: диспетчер вызывает первый, чей
-# фильтр совпал, поэтому более специфичные обработчики (команда, контакт)
-# идут раньше "общего" on_message.
-
-
-@dp.message_created(CommandStart())
-async def on_start(event: MessageCreated) -> None:
+async def _greet_or_request_contact(event: BotStarted | MessageCreated) -> None:
     _, user_id = event.get_ids()
     user = None
     if user_id is not None:
@@ -45,12 +47,27 @@ async def on_start(event: MessageCreated) -> None:
             user = await get_user_by_max_id(session, user_id)
 
     if user is not None and user.has_access():
-        await event.message.answer(
-            "Доступ есть. Пришлите xlsx-файл — верну его обратно."
-        )
+        await event.send("Доступ есть. Пришлите xlsx-файл — верну его обратно.")
         return
 
     await _request_contact(event)
+
+
+# Порядок регистрации handler'ов важен: диспетчер вызывает первый, чей
+# фильтр совпал, поэтому более специфичные обработчики (команда, контакт)
+# идут раньше "общего" on_message.
+
+
+@dp.bot_started()
+async def on_bot_started(event: BotStarted) -> None:
+    # Срабатывает при первом открытии чата с ботом — до того, как
+    # пользователь что-либо написал.
+    await _greet_or_request_contact(event)
+
+
+@dp.message_created(CommandStart())
+async def on_start(event: MessageCreated) -> None:
+    await _greet_or_request_contact(event)
 
 
 @dp.message_created(ContactFilter())

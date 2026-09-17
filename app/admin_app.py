@@ -1,10 +1,11 @@
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from sqladmin import Admin, ModelView
 from sqladmin.authentication import AuthenticationBackend
 from starlette.requests import Request
 
 from app.config import settings
-from app.db import engine
+from app.db import engine, init_models
 from app.models import MaxUser
 
 
@@ -62,6 +63,16 @@ admin = Admin(
     authentication_backend=AdminAuth(secret_key=settings.admin_secret_key),
 )
 admin.add_view(MaxUserAdmin)
+
+
+@app.on_event("startup")
+async def on_startup() -> None:
+    await init_models()
+
+
+@app.get("/")
+async def root() -> RedirectResponse:
+    return RedirectResponse(url="/admin")
 
 
 @app.get("/health")

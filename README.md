@@ -12,7 +12,12 @@
 
 ## Стек
 
-FastAPI + SQLAlchemy (async) + Alembic + SQLAdmin + PostgreSQL + Poetry + [`maxapi`](https://github.com/max-messenger/max-botapi-python) (long polling, без вебхука и сертификатов).
+FastAPI + SQLAlchemy (async) + SQLAdmin + PostgreSQL + Poetry + [`maxapi`](https://github.com/max-messenger/max-botapi-python) (long polling, без вебхука и сертификатов).
+
+Без Alembic: таблицы создаются автоматически при старте (`app/db.py:init_models`,
+`CREATE TABLE IF NOT EXISTS`). Это осознанное упрощение под текущий масштаб —
+если позже понадобится менять схему на проде с уже накопленными данными
+(добавлять/переименовывать колонки без потери данных), миграции стоит вернуть.
 
 ## Запуск
 
@@ -28,16 +33,16 @@ FastAPI + SQLAlchemy (async) + Alembic + SQLAdmin + PostgreSQL + Poetry + [`maxa
    docker compose up -d --build
    ```
 
-   Сервис `migrate` применяет миграции Alembic и завершается, `bot` и `admin` стартуют после него.
+   `bot` и `admin` при старте сами создают таблицы в БД, если их ещё нет.
 
-3. Админка: `http://<сервер>:8000/admin` (логин/пароль из `.env`).
+3. Админка: `http://<сервер>:8000/admin` (логин/пароль из `.env`). Корень
+   `/` редиректит туда же — `/health` для проверки живости процесса.
 
 ## Локальная разработка без Docker
 
 ```bash
 poetry install
-poetry run alembic upgrade head          # нужен доступ к Postgres из DATABASE_URL
-poetry run python -m app.bot.main        # бот (long polling)
+poetry run python -m app.bot.main        # бот (long polling), создаст таблицы сам
 poetry run uvicorn app.admin_app:app --reload   # админка
 ```
 
@@ -52,9 +57,8 @@ app/
   xlsx_processing.py # точка расширения под форматирование таблиц
   bot/
     access.py        # поиск/привязка пользователя по телефону и max_user_id
-    handlers.py       # хендлеры бота (/start, контакт, приём/отдача xlsx)
+    handlers.py       # хендлеры бота (открытие чата, /start, контакт, приём/отдача xlsx)
     main.py           # запуск бота (long polling)
-migrations/           # Alembic
 ```
 
 ## Известные нюансы для проверки на реальном токене

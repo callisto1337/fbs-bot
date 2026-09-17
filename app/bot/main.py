@@ -5,11 +5,13 @@ from maxapi import Bot
 
 from app.bot.handlers import dp
 from app.config import settings
+from app.db import init_models
 
 logging.basicConfig(level=logging.INFO)
 
 
 async def main() -> None:
+    await init_models()
     bot = Bot(settings.max_bot_token)
     await dp.start_polling(bot)
 

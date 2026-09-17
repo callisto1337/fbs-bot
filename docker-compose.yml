@@ -15,21 +15,13 @@ services:
       timeout: 5s
       retries: 10
 
-  migrate:
-    build: .
-    env_file: .env
-    depends_on:
-      db:
-        condition: service_healthy
-    command: ["alembic", "upgrade", "head"]
-
   bot:
     build: .
     restart: unless-stopped
     env_file: .env
     depends_on:
-      migrate:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
     command: ["python", "-m", "app.bot.main"]
 
   admin:
@@ -37,8 +29,8 @@ services:
     restart: unless-stopped
     env_file: .env
     depends_on:
-      migrate:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
     ports:
       - "8000:8000"
     command: ["uvicorn", "app.admin_app:app", "--host", "0.0.0.0", "--port", "8000"]
