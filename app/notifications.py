@@ -9,6 +9,9 @@ logger = logging.getLogger(__name__)
 ACCESS_ACTIVATED_TEXT = (
     "Доступ к боту активирован. Пришлите xlsx-файл — верну его обратно."
 )
+ACCESS_REVOKED_TEXT = (
+    "Доступ к боту приостановлен. Если это неожиданно, свяжитесь с администратором."
+)
 
 _bot: Bot | None = None
 
@@ -20,14 +23,21 @@ def _get_bot() -> Bot:
     return _bot
 
 
-async def notify_access_activated(max_user_id: int) -> None:
+async def _send(max_user_id: int, text: str) -> None:
     try:
-        await _get_bot().send_message(user_id=max_user_id, text=ACCESS_ACTIVATED_TEXT)
+        await _get_bot().send_message(user_id=max_user_id, text=text)
     except Exception:
         logger.exception(
-            "Не удалось отправить уведомление об активации доступа max_user_id=%s",
-            max_user_id,
+            "Не удалось отправить уведомление max_user_id=%s", max_user_id
         )
+
+
+async def notify_access_activated(max_user_id: int) -> None:
+    await _send(max_user_id, ACCESS_ACTIVATED_TEXT)
+
+
+async def notify_access_revoked(max_user_id: int) -> None:
+    await _send(max_user_id, ACCESS_REVOKED_TEXT)
 
 
 async def close_notifier() -> None:
