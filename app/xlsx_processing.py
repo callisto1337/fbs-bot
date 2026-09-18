@@ -1,6 +1,28 @@
-def process_xlsx(data: bytes) -> bytes:
-    """Точка расширения для будущей логики форматирования таблиц.
+from io import BytesIO
 
-    Пока возвращает файл без изменений.
-    """
-    return data
+from openpyxl import load_workbook
+
+from app.marketplaces import wildberries
+
+_MARKETPLACES = [wildberries]
+
+
+class UnrecognizedReportFormatError(Exception):
+    """Файл не соответствует ни одному известному формату выгрузки."""
+
+
+def process_xlsx(data: bytes) -> bytes:
+    workbook = load_workbook(BytesIO(data), data_only=True)
+
+    for marketplace in _MARKETPLACES:
+        if marketplace.detect(workbook):
+            result_workbook = marketplace.process(workbook)
+            break
+    else:
+        raise UnrecognizedReportFormatError(
+            "Формат файла не распознан. Поддерживается выгрузка КИЗ из Wildberries."
+        )
+
+    buffer = BytesIO()
+    result_workbook.save(buffer)
+    return buffer.getvalue()

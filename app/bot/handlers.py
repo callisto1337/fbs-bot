@@ -15,8 +15,7 @@ from maxapi.utils.inline_keyboard import InlineKeyboardBuilder
 
 from app.bot.access import get_user_by_max_id, link_phone_to_max_id
 from app.db import async_session
-from app.models import MaxUser
-from app.xlsx_processing import process_xlsx
+from app.xlsx_processing import UnrecognizedReportFormatError, process_xlsx
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +23,7 @@ dp = Dispatcher()
 
 CONTACT_PROMPT = (
     "Чтобы пользоваться ботом, поделитесь номером телефона, "
-    "на который оформлена подписка."
-)
-
-ACCESS_INACTIVE_TEXT = (
-    "Доступ не активен. Обратитесь к администратору, чтобы "
-    "активировать или продлить подписку."
+    "на который оформлена оплата доступа."
 )
 
 
@@ -45,20 +39,6 @@ async def _request_contact(event: BotStarted | MessageCreated) -> None:
     await event.send(CONTACT_PROMPT, attachments=_contact_keyboard())
 
 
-async def _deny_access(
-    event: BotStarted | MessageCreated, user: MaxUser | None
-) -> None:
-    """Номер телефона (=аккаунт MAX) не меняется, поэтому один раз
-    подтверждённого пользователя (user не None) при неактивном доступе
-    просто отправляем к администратору, а не переспрашиваем контакт —
-    его просят поделиться номером только пока max_user_id ещё не привязан.
-    """
-    if user is None:
-        await _request_contact(event)
-    else:
-        await event.send(ACCESS_INACTIVE_TEXT)
-
-
 async def _greet_or_request_contact(event: BotStarted | MessageCreated) -> None:
     _, user_id = event.get_ids()
     user = None
@@ -70,7 +50,7 @@ async def _greet_or_request_contact(event: BotStarted | MessageCreated) -> None:
         await event.send("Доступ есть. Пришлите xlsx-файл — верну его обратно.")
         return
 
-    await _deny_access(event, user)
+    await _request_contact(event)
 
 
 # Порядок регистрации handler'ов важен: диспетчер вызывает первый, чей
@@ -136,7 +116,7 @@ async def on_message(event: MessageCreated) -> None:
             user = await get_user_by_max_id(session, user_id)
 
     if user is None or not user.has_access():
-        await _deny_access(event, user)
+        await _request_contact(event)
         return
 
     if file_attachment is None:
@@ -153,7 +133,11 @@ async def on_message(event: MessageCreated) -> None:
         return
 
     data = await event.bot.download_bytes(url=file_attachment.payload.url)
-    result = process_xlsx(data)
+    try:
+        result = process_xlsx(data)
+    except UnrecognizedReportFormatError as exc:
+        await event.message.answer(str(exc))
+        return
 
     await event.message.answer(
         "Готово, ваш файл обработан:",
