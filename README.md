@@ -12,12 +12,12 @@
 
 ## Стек
 
-FastAPI + SQLAlchemy (async) + SQLAdmin + PostgreSQL + Poetry + [`maxapi`](https://github.com/max-messenger/max-botapi-python) (long polling, без вебхука и сертификатов).
+FastAPI + SQLAlchemy (async) + SQLAdmin + PostgreSQL + Poetry + [`maxapi`](https://github.com/max-messenger/max-botapi-python) (long polling, без вебхука и сертификатов) + Alembic (миграции схемы).
 
-Без Alembic: таблицы создаются автоматически при старте (`app/db.py:init_models`,
-`CREATE TABLE IF NOT EXISTS`). Это осознанное упрощение под текущий масштаб —
-если позже понадобится менять схему на проде с уже накопленными данными
-(добавлять/переименовывать колонки без потери данных), миграции стоит вернуть.
+Схема БД управляется миграциями Alembic (`alembic/versions/`), таблицы автосозданием
+не создаются. В docker-compose есть одноразовый сервис `migrate`
+(`alembic upgrade head`), от которого зависят `bot` и `admin` — они не
+стартуют, пока миграции не применены.
 
 ## Запуск
 
@@ -33,7 +33,18 @@ FastAPI + SQLAlchemy (async) + SQLAdmin + PostgreSQL + Poetry + [`maxapi`](https
    docker compose up -d --build
    ```
 
-   `bot` и `admin` при старте сами создают таблицы в БД, если их ещё нет.
+   Перед запуском `bot`/`admin` сервис `migrate` применяет миграции
+   (`alembic upgrade head`) — на пустой БД создаст всю схему сам.
+
+   **Если БД уже существует и таблицы созданы старым способом** (до
+   появления Alembic, через `create_all`), один раз пометьте текущую схему
+   как соответствующую первой миграции — иначе Alembic попытается создать
+   уже существующую таблицу заново:
+
+   ```bash
+   docker compose run --rm migrate alembic stamp 98bd89a04d51
+   docker compose up -d --build
+   ```
 
 3. Админка: `http://<сервер>:8000/admin` (логин/пароль из `.env`). Корень
    `/` редиректит туда же — `/health` для проверки живости процесса.
@@ -42,23 +53,37 @@ FastAPI + SQLAlchemy (async) + SQLAdmin + PostgreSQL + Poetry + [`maxapi`](https
 
 ```bash
 poetry install
-poetry run python -m app.bot.main        # бот (long polling), создаст таблицы сам
+poetry run alembic upgrade head           # применить миграции
+poetry run python -m app.bot.main         # бот (long polling)
 poetry run uvicorn app.admin_app:app --reload   # админка
+```
+
+### Изменение схемы
+
+```bash
+# 1. Поменять модель в app/models.py
+# 2. Сгенерировать миграцию по разнице с БД:
+poetry run alembic revision --autogenerate -m "описание изменения"
+# 3. Проверить сгенерированный файл в alembic/versions/ и применить:
+poetry run alembic upgrade head
 ```
 
 ## Структура
 
 ```
 app/
-  config.py        # настройки из .env
-  db.py             # async engine/session
-  models.py         # модель MaxUser (доступ пользователей MAX)
-  admin_app.py       # FastAPI + SQLAdmin
-  xlsx_processing.py # точка расширения под форматирование таблиц
+  config.py         # настройки из .env
+  db.py              # async engine/session
+  models.py          # модель MaxUser (доступ пользователей MAX)
+  admin_app.py        # FastAPI + SQLAdmin
+  notifications.py    # проактивные уведомления пользователю через MAX
+  scheduler.py         # APScheduler-джоб: уведомление об истечении доступа по времени
+  xlsx_processing.py  # точка расширения под форматирование таблиц
   bot/
-    access.py        # поиск/привязка пользователя по телефону и max_user_id
-    handlers.py       # хендлеры бота (открытие чата, /start, контакт, приём/отдача xlsx)
-    main.py           # запуск бота (long polling)
+    access.py         # поиск/привязка пользователя по телефону и max_user_id
+    handlers.py        # хендлеры бота (открытие чата, /start, контакт, приём/отдача xlsx)
+    main.py            # запуск бота (long polling)
+alembic/               # миграции схемы БД
 ```
 
 ## Известные нюансы для проверки на реальном токене

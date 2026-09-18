@@ -6,7 +6,7 @@ from sqlalchemy import update
 from starlette.requests import Request
 
 from app.config import settings
-from app.db import async_session, engine, init_models
+from app.db import async_session, engine
 from app.models import MaxUser
 from app.notifications import (
     close_notifier,
@@ -97,11 +97,6 @@ admin = Admin(
     authentication_backend=AdminAuth(secret_key=settings.admin_secret_key),
 )
 admin.add_view(MaxUserAdmin)
-
-
-@app.on_event("startup")
-async def on_startup() -> None:
-    await init_models()
 
 
 @app.on_event("shutdown")
