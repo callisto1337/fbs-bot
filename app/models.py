@@ -28,6 +28,12 @@ class MaxUser(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    # Момент отправки уведомления об истечении access_expires_at. Пусто —
+    # уведомление ещё не отправлено (или доступ с тех пор продлили).
+    # Используется планировщиком, чтобы не слать уведомление повторно.
+    expiry_notified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     def has_access(self) -> bool:
         if not self.is_active:

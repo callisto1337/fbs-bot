@@ -12,6 +12,10 @@ ACCESS_ACTIVATED_TEXT = (
 ACCESS_REVOKED_TEXT = (
     "Доступ к боту приостановлен. Если это неожиданно, свяжитесь с администратором."
 )
+ACCESS_EXPIRED_TEXT = (
+    "Срок действия доступа к боту истёк. Чтобы продолжить пользоваться ботом, "
+    "обратитесь к администратору для продления."
+)
 
 _bot: Bot | None = None
 
@@ -38,6 +42,10 @@ async def notify_access_activated(max_user_id: int) -> None:
 
 async def notify_access_revoked(max_user_id: int) -> None:
     await _send(max_user_id, ACCESS_REVOKED_TEXT)
+
+
+async def notify_access_expired(max_user_id: int) -> None:
+    await _send(max_user_id, ACCESS_EXPIRED_TEXT)
 
 
 async def close_notifier() -> None:
