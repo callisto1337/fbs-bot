@@ -20,7 +20,7 @@ def process_xlsx(data: bytes) -> bytes:
             break
     else:
         raise UnrecognizedReportFormatError(
-            "Формат файла не распознан. Поддерживается выгрузка КИЗ из Wildberries."
+            "Формат файла не распознан. Попробуйте использовать другой файл."
         )
 
     buffer = BytesIO()
