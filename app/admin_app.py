@@ -7,6 +7,7 @@ from starlette.requests import Request
 from app.config import settings
 from app.db import engine, init_models
 from app.models import MaxUser
+from app.notifications import close_notifier, notify_access_activated
 
 
 class AdminAuth(AuthenticationBackend):
@@ -54,6 +55,20 @@ class MaxUserAdmin(ModelView, model=MaxUser):
         MaxUser.comment,
     ]
 
+    async def on_model_change(
+        self, data: dict, model: MaxUser, is_created: bool, request: Request
+    ) -> None:
+        # Запоминаем состояние доступа до применения формы (model здесь ещё
+        # не тронут), чтобы после сохранения понять, произошла ли активация.
+        request.state.had_access_before = False if is_created else model.has_access()
+
+    async def after_model_change(
+        self, data: dict, model: MaxUser, is_created: bool, request: Request
+    ) -> None:
+        had_access_before = getattr(request.state, "had_access_before", False)
+        if not had_access_before and model.has_access() and model.max_user_id:
+            await notify_access_activated(model.max_user_id)
+
 
 app = FastAPI(title="xlsx-converter admin")
 
@@ -68,6 +83,11 @@ admin.add_view(MaxUserAdmin)
 @app.on_event("startup")
 async def on_startup() -> None:
     await init_models()
+
+
+@app.on_event("shutdown")
+async def on_shutdown() -> None:
+    await close_notifier()
 
 
 @app.get("/")
