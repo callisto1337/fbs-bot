@@ -22,7 +22,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: ["alembic", "upgrade", "head"]
+    command: ["python", "-m", "app.migrate"]
 
   bot:
     build: .
