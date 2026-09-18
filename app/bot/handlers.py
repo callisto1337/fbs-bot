@@ -15,7 +15,7 @@ from maxapi.utils.inline_keyboard import InlineKeyboardBuilder
 
 from app.bot.access import get_user_by_max_id, link_phone_to_max_id
 from app.db import async_session
-from app.xlsx_processing import process_xlsx
+from app.xlsx_processing import UnrecognizedReportFormatError, process_xlsx
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +133,11 @@ async def on_message(event: MessageCreated) -> None:
         return
 
     data = await event.bot.download_bytes(url=file_attachment.payload.url)
-    result = process_xlsx(data)
+    try:
+        result = process_xlsx(data)
+    except UnrecognizedReportFormatError as exc:
+        await event.message.answer(str(exc))
+        return
 
     await event.message.answer(
         "Готово, ваш файл обработан:",
