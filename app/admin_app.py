@@ -2,10 +2,11 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from sqladmin import Admin, ModelView
 from sqladmin.authentication import AuthenticationBackend
+from sqlalchemy import update
 from starlette.requests import Request
 
 from app.config import settings
-from app.db import engine, init_models
+from app.db import async_session, engine
 from app.models import MaxUser
 from app.notifications import (
     close_notifier,
@@ -75,6 +76,15 @@ class MaxUserAdmin(ModelView, model=MaxUser):
             return
         if not had_access_before and has_access_after:
             await notify_access_activated(model.max_user_id)
+            # Сбрасываем отметку об уведомлении об истечении, чтобы при
+            # следующем истечении access_expires_at планировщик уведомил снова.
+            async with async_session() as session:
+                await session.execute(
+                    update(MaxUser)
+                    .where(MaxUser.id == model.id)
+                    .values(expiry_notified_at=None)
+                )
+                await session.commit()
         elif had_access_before and not has_access_after:
             await notify_access_revoked(model.max_user_id)
 
@@ -87,11 +97,6 @@ admin = Admin(
     authentication_backend=AdminAuth(secret_key=settings.admin_secret_key),
 )
 admin.add_view(MaxUserAdmin)
-
-
-@app.on_event("startup")
-async def on_startup() -> None:
-    await init_models()
 
 
 @app.on_event("shutdown")

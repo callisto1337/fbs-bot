@@ -8,6 +8,8 @@ RUN poetry config virtualenvs.in-project true \
     && poetry install --no-root --only main --no-interaction --no-ansi
 
 COPY app ./app
+COPY alembic ./alembic
+COPY alembic.ini ./alembic.ini
 
 FROM python:3.12-slim AS runtime
 
